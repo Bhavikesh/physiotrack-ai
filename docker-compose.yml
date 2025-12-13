@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image:  postgres:15-alpine
+    container_name: physiotrack-db
+    environment:
+      POSTGRES_USER: physiotrack
+      POSTGRES_PASSWORD: physiotrack123
+      POSTGRES_DB: physiotrack
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U physiotrack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis (for caching exercise templates)
+  redis:
+    image: redis:7-alpine
+    container_name: physiotrack-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: physiotrack-backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment: 
+      DATABASE_URL: postgresql://physiotrack:physiotrack123@db:5432/physiotrack
+      REDIS_URL: redis://redis:6379
+      ENVIRONMENT: development
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db: 
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile. dev
+    container_name: physiotrack-frontend
+    ports: 
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data: 
