@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 
-from app.routers import exercises, sessions, analytics
+from app.routers import exercises, sessions, analytics, auth
 from app.database import engine, Base
 
 # Configure logging
@@ -16,7 +16,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create database tables
-Base.metadata.create_all(bind=engine)
+# Commented out to run without PostgreSQL - uncomment when DB is available
+# Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -43,6 +44,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(exercises.router, prefix="/api/v1/exercises", tags=["Exercises"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])

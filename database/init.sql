@@ -1,9 +1,6 @@
 -- PhysioTrack AI Database Schema
 -- PostgreSQL 15+
 
--- Enable TimescaleDB extension (optional, for better time-series performance)
--- CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
-
 -- ============================================================================
 -- USERS & AUTHENTICATION
 -- ============================================================================
@@ -103,9 +100,6 @@ CREATE INDEX idx_movement_session ON movement_data(session_id);
 CREATE INDEX idx_movement_timestamp ON movement_data(timestamp);
 CREATE INDEX idx_movement_session_time ON movement_data(session_id, timestamp);
 
--- Optional: Convert to TimescaleDB hypertable for better performance
--- SELECT create_hypertable('movement_data', 'timestamp', if_not_exists => TRUE);
-
 -- ============================================================================
 -- FEEDBACK LOGS
 -- ============================================================================
@@ -153,7 +147,7 @@ CREATE INDEX idx_metrics_week ON progress_metrics(week_number);
 -- ============================================================================
 
 INSERT INTO exercises (exercise_code, name, description, category, difficulty, target_rom) VALUES
-('shoulder_flexion', 'Shoulder Flexion', 'Raise arm forward and upward to full range', 'upper_body', 'beginner', 180. 00),
+('shoulder_flexion', 'Shoulder Flexion', 'Raise arm forward and upward to full range', 'upper_body', 'beginner', 180.00),
 ('knee_extension', 'Knee Extension (Quad Set)', 'Straighten knee while seated, activate quadriceps', 'lower_body', 'beginner', 0.00),
 ('hip_abduction', 'Hip Abduction (Standing)', 'Lift leg out to the side while standing', 'lower_body', 'beginner', 45.00),
 ('squat', 'Squat', 'Lower body by bending knees and hips', 'lower_body', 'intermediate', 90.00),
@@ -171,7 +165,7 @@ ON CONFLICT (email) DO NOTHING;
 
 -- Demo Physiotherapist (password: pt1234)
 INSERT INTO users (email, password_hash, user_type, first_name, last_name) VALUES
-('pt@physiotrack.ai', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5LL2aGRzl/dTC', 'physiotherapist', 'Dr.  Sarah', 'Johnson')
+('pt@physiotrack.ai', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5LL2aGRzl/dTC', 'physiotherapist', 'Dr. Sarah', 'Johnson')
 ON CONFLICT (email) DO NOTHING;
 
 -- Link demo patient to PT
@@ -199,58 +193,3 @@ CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
-
--- ============================================================================
--- VIEWS: Useful Analytics Views
--- ============================================================================
-
--- View: Recent patient activity
-CREATE OR REPLACE VIEW recent_patient_activity AS
-SELECT 
-    p. patient_id,
-    u.first_name || ' ' || u.last_name AS patient_name,
-    e.name AS exercise_name,
-    es.start_time,
-    es.total_reps,
-    es. quality_reps,
-    es.average_quality_score
-FROM exercise_sessions es
-JOIN patients p ON es.patient_id = p. patient_id
-JOIN users u ON p.user_id = u. user_id
-JOIN exercises e ON es.exercise_id = e. exercise_id
-WHERE es.completed = TRUE
-ORDER BY es.start_time DESC;
-
--- View:  PT Dashboard Summary
-CREATE OR REPLACE VIEW pt_patient_summary AS
-SELECT 
-    p. patient_id,
-    u. first_name || ' ' || u.last_name AS patient_name,
-    p.injury_type,
-    p.current_week,
-    COUNT(DISTINCT es.session_id) AS total_sessions,
-    MAX(es.start_time) AS last_session,
-    ROUND(AVG(es.average_quality_score), 1) AS avg_quality
-FROM patients p
-JOIN users u ON p.user_id = u. user_id
-LEFT JOIN exercise_sessions es ON p.patient_id = es.patient_id AND es.completed = TRUE
-GROUP BY p.patient_id, u.first_name, u.last_name, p.injury_type, p.current_week;
-
--- ============================================================================
--- COMMENTS (Documentation)
--- ============================================================================
-
-COMMENT ON TABLE users IS 'Base user accounts for both patients and physiotherapists';
-COMMENT ON TABLE patients IS 'Extended patient information and injury details';
-COMMENT ON TABLE exercises IS 'Exercise definitions and metadata';
-COMMENT ON TABLE exercise_sessions IS 'Individual exercise workout sessions';
-COMMENT ON TABLE movement_data IS 'Time-series joint angle and pose data';
-COMMENT ON TABLE feedback_logs IS 'Real-time corrective feedback given during exercises';
-COMMENT ON TABLE progress_metrics IS 'Aggregated weekly progress statistics';
-
--- ============================================================================
--- GRANTS (Adjust for your user)
--- ============================================================================
-
--- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO physiotrack;
--- GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO physiotrack;

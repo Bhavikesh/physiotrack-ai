@@ -24,7 +24,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    patient_profile = relationship("Patient", back_populates="user", uselist=False)
+    patient_profile = relationship("Patient", back_populates="user", uselist=False, foreign_keys="[Patient.user_id]")
     
     def __repr__(self):
         return f"<User {self.email} ({self.user_type})>"
