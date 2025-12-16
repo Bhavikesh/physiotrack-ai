@@ -118,10 +118,13 @@ class ExerciseWithRules(ExerciseResponse):
 
 class Landmark(BaseModel):
     """Single MediaPipe landmark"""
-    x:  float = Field(..., ge=0.0, le=1.0, description="Normalized X coordinate")
-    y: float = Field(..., ge=0.0, le=1.0, description="Normalized Y coordinate")
+    x: float = Field(..., description="Normalized X coordinate")
+    y: float = Field(..., description="Normalized Y coordinate")
     z: float = Field(..., description="Depth coordinate")
-    visibility: float = Field(... , ge=0.0, le=1.0, description="Landmark visibility score")
+    visibility: float = Field(..., description="Landmark visibility score")
+    
+    class Config:
+        extra = 'allow'  # Allow extra fields from MediaPipe
 
 
 class AnalyzeFrameRequest(BaseModel):

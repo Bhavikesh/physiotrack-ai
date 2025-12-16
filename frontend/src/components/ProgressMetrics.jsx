@@ -75,6 +75,9 @@ export default function ProgressMetrics({
           <div className="mt-2 text-xs text-gray-400">
             {qualityPercentage.toFixed(0)}% success rate
           </div>
+          <div className="mt-1 text-xs text-green-400 font-medium">
+            ✓ Perfect form, no errors
+          </div>
         </div>
 
         {/* Form Quality */}

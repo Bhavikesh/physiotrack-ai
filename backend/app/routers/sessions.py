@@ -3,7 +3,7 @@ Exercise Session Routes
 Core functionality for real-time pose analysis
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import List, Dict
@@ -30,8 +30,10 @@ async def start_session(session_data: SessionStart, db: Session = Depends(get_db
     """
     Start a new exercise session
     """
+    print(f"\n🚀 START SESSION REQUEST: patient_id={session_data.patient_id}, exercise_id={session_data.exercise_id}")
+    
     # Verify patient exists
-    patient = db. query(Patient).filter(Patient.patient_id == session_data. patient_id).first()
+    patient = db.query(Patient).filter(Patient.patient_id == session_data.patient_id).first()
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -65,9 +67,27 @@ async def start_session(session_data: SessionStart, db: Session = Depends(get_db
     db.commit()
     db.refresh(new_session)
     
-    # Initialize pose analyzer
-    analyzer = PoseAnalyzer(exercise_code)
+    # Calculate weeks post-surgery if applicable
+    weeks_post_surgery = None
+    if patient.surgery_date:
+        # Calculate days since surgery
+        # Convert date to datetime if needed
+        if isinstance(patient.surgery_date, datetime):
+            surgery_datetime = patient.surgery_date.replace(tzinfo=None) if patient.surgery_date.tzinfo else patient.surgery_date
+        else:
+            # It's a date object, convert to datetime
+            surgery_datetime = datetime.combine(patient.surgery_date, datetime.min.time())
+        
+        days_since_surgery = (datetime.utcnow() - surgery_datetime).days
+        weeks_post_surgery = days_since_surgery // 7
+        print(f"⚕️ Patient is {weeks_post_surgery} weeks post-surgery")
+    
+    # Initialize pose analyzer with surgery context
+    analyzer = PoseAnalyzer(exercise_code, weeks_post_surgery=weeks_post_surgery)
     active_analyzers[new_session.session_id] = analyzer
+    
+    print(f"✅ Analyzer created for session {new_session.session_id} - Exercise: {exercise_code}")
+    print(f"📊 Active analyzers count: {len(active_analyzers)}")
     
     # Get exercise rules
     rules = get_exercise_rules(exercise_code)
@@ -80,12 +100,27 @@ async def start_session(session_data: SessionStart, db: Session = Depends(get_db
     )
 
 
-@router.post("/analyze-frame", response_model=AnalyzeFrameResponse)
-async def analyze_frame(frame_data: AnalyzeFrameRequest, db: Session = Depends(get_db)):
+@router.post("/analyze-frame")
+async def analyze_frame(request: Request, db: Session = Depends(get_db)):
     """
     Analyze a single frame of pose data
     This is called 30 times per second during exercise
     """
+    try:
+        # Get raw JSON first to debug
+        raw_data = await request.json()
+        print(f"\n📹 ANALYZE FRAME RAW: session_id={raw_data.get('session_id')}")
+        print(f"    Landmarks type: {type(raw_data.get('landmarks'))}")
+        if raw_data.get('landmarks'):
+            print(f"    First landmark sample: {raw_data['landmarks'][0] if len(raw_data['landmarks']) > 0 else 'empty'}")
+        
+        # Now validate with Pydantic
+        frame_data = AnalyzeFrameRequest(**raw_data)
+        print(f"    ✅ Validation passed!")
+    except Exception as e:
+        print(f"    ❌ Validation error: {e}")
+        raise HTTPException(status_code=422, detail=str(e))
+    
     # Get session
     session = db.query(ExerciseSession).filter(
         ExerciseSession.session_id == frame_data.session_id
@@ -187,7 +222,10 @@ async def end_session(end_data: SessionEnd, db:  Session = Depends(get_db)):
     
     # Update session
     session.end_time = datetime.utcnow()
-    session.duration_seconds = int((session.end_time - session. start_time).total_seconds())
+    # Ensure both times are naive (no timezone)
+    start_time_naive = session.start_time.replace(tzinfo=None) if session.start_time.tzinfo else session.start_time
+    end_time_naive = session.end_time.replace(tzinfo=None) if session.end_time.tzinfo else session.end_time
+    session.duration_seconds = int((end_time_naive - start_time_naive).total_seconds())
     session.completed = True
     
     if end_data.notes:

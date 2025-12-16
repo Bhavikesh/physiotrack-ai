@@ -29,6 +29,13 @@ export default function PatientDashboard() {
     }
 
     fetchDashboardData();
+    
+    // Refresh dashboard when returning from exercise (check every 2 seconds)
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 2000);
+    
+    return () => clearInterval(interval);
   }, [user]);
 
   const fetchDashboardData = async () => {

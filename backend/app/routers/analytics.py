@@ -157,8 +157,12 @@ async def get_patient_analytics(patient_id: int, db: Session = Depends(get_db)):
     # Check for no recent activity
     if exercise_progress_list:
         most_recent = max([ep.last_session for ep in exercise_progress_list if ep.last_session])
-        if most_recent and (datetime.utcnow() - most_recent).days > 3:
-            red_flags.append(f"No activity for {(datetime.utcnow() - most_recent).days} days")
+        if most_recent:
+            # Make both datetimes timezone-aware or naive for comparison
+            now = datetime.utcnow().replace(tzinfo=most_recent.tzinfo) if most_recent.tzinfo else datetime.utcnow()
+            days_since = (now - most_recent).days
+            if days_since > 3:
+                red_flags.append(f"No activity for {days_since} days")
     
     # Check for consistent compensations
     recent_feedback = db.query(FeedbackLog).join(

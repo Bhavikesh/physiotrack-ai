@@ -9,7 +9,7 @@ from typing import Dict, List, Tuple
 EXERCISE_RULES:  Dict[str, Dict] = {
     "shoulder_flexion": {
         "name": "Shoulder Flexion",
-        "description": "Raise arm forward and upward to full range",
+        "description": "Stand with feet shoulder-width apart. Slowly raise your arm straight forward and upward toward the ceiling. Keep your arm straight and elbow locked. Lower back down slowly with control.",
         "target_rom": 180,  # degrees
         "acceptable_range": (160, 180),
         "joints_to_track": {
@@ -49,7 +49,7 @@ EXERCISE_RULES:  Dict[str, Dict] = {
     
     "knee_extension": {
         "name": "Knee Extension (Quad Set)",
-        "description": "Straighten knee while seated, activate quadriceps",
+        "description": "Sit on a chair or bed with one leg extended. Tighten your thigh muscle (quadriceps) and push the back of your knee down toward the surface. Hold for 5 seconds, then relax. Keep your leg straight throughout.",
         "target_rom": 0,  # full extension
         "acceptable_range":  (-5, 5),
         "joints_to_track": {
@@ -83,7 +83,7 @@ EXERCISE_RULES:  Dict[str, Dict] = {
     
     "hip_abduction": {
         "name":  "Hip Abduction (Standing)",
-        "description": "Lift leg out to the side while standing",
+        "description": "Stand holding onto a chair or wall for balance. Slowly lift your leg straight out to the side, keeping your knee straight and toes pointing forward. Keep your body upright (don't lean). Lower slowly back down.",
         "target_rom":  45,
         "acceptable_range": (35, 50),
         "joints_to_track": {
@@ -192,6 +192,92 @@ EXERCISE_RULES:  Dict[str, Dict] = {
             "week_1_2": {"reps":  20, "sets": 3, "resistance": "none"},
             "week_3_4":  {"reps": 30, "sets": 3, "resistance": "resistance_band"},
             "week_5_6": {"reps":  40, "sets": 3, "resistance": "resistance_band"}
+        }
+    },
+    
+    "neck_flexion": {
+        "name": "Cervical Flexion (Chin Tuck)",
+        "description": "Slowly tilt your head forward bringing your chin toward your chest. Keep shoulders relaxed and down. You should feel a gentle stretch at the back of your neck.",
+        "target_rom": 50,  # degrees from neutral
+        "acceptable_range": (40, 60),
+        "joints_to_track": {
+            "neck": {"points": [7, 0, 8], "name": "neck_angle"},  # Left ear, nose, right ear
+            "upper_spine": {"points": [11, 7, 0], "name": "head_tilt_angle"}  # Shoulder, ear, nose
+        },
+        "compensation_checks": {
+            "shoulder_elevation": {
+                "description": "Shoulders rising toward ears (tension)",
+                "max_angle": 15,
+                "joints": ["shoulder"],
+                "feedback": "Relax your shoulders. Keep them down and back."
+            },
+            "excessive_flexion": {
+                "description": "Going too far forward (chin jutting)",
+                "max_angle": 70,
+                "joints": ["neck"],
+                "feedback": "Don't force it. Gentle chin tuck, don't jam chin to chest."
+            }
+        },
+        "velocity": {
+            "concentric": (15, 30),  # slow and controlled for neck
+            "eccentric": (15, 30),
+            "feedback_too_fast": "Slow down! Neck movements should be very gentle.",
+            "feedback_too_slow": "Good controlled pace!"
+        },
+        "hold_duration": {
+            "end_range": 3,  # hold the stretch
+            "rest_between": 2
+        },
+        "progression": {
+            "week_1_2": {"reps": 8, "sets": 2, "resistance": "none"},
+            "week_3_4": {"reps": 10, "sets": 3, "resistance": "gentle_pressure"},
+            "week_5_6": {"reps": 12, "sets": 3, "resistance": "gentle_pressure"}
+        }
+    },
+    
+    "neck_rotation": {
+        "name": "Cervical Rotation (Head Turn)",
+        "description": "Slowly turn your head to look over your right shoulder, then return to center and repeat to the left. Keep your chin level (don't tilt up or down) and shoulders facing forward.",
+        "target_rom": 80,  # degrees from center
+        "acceptable_range": (70, 90),
+        "joints_to_track": {
+            "neck_rotation": {"points": [11, 0, 12], "name": "rotation_angle"},  # Left shoulder, nose, right shoulder
+            "chin_level": {"points": [7, 0, 8], "name": "vertical_alignment"}  # Ears should stay level
+        },
+        "compensation_checks": {
+            "trunk_rotation": {
+                "description": "Rotating trunk instead of just neck",
+                "max_angle": 15,
+                "joints": ["trunk"],
+                "feedback": "Keep your shoulders facing forward. Only turn your head."
+            },
+            "shoulder_elevation": {
+                "description": "Lifting shoulder on rotation side",
+                "max_angle": 10,
+                "joints": ["shoulder"],
+                "feedback": "Keep both shoulders level and relaxed."
+            },
+            "chin_tilt": {
+                "description": "Tilting chin up or down during rotation",
+                "max_angle": 10,
+                "joints": ["chin"],
+                "feedback": "Keep your chin level. Look straight ahead as you turn."
+            }
+        },
+        "velocity": {
+            "concentric": (20, 40),
+            "eccentric": (20, 40),
+            "feedback_too_fast": "Slower! Neck rotation should be smooth and controlled.",
+            "feedback_too_slow": "Good pace!"
+        },
+        "hold_duration": {
+            "end_range": 2,
+            "rest_between": 2
+        },
+        "progression": {
+            "week_1_2": {"reps": 10, "sets": 2, "resistance": "none"},
+            "week_3_4": {"reps": 12, "sets": 3, "resistance": "none"},
+            "week_5_6": {"reps": 15, "sets": 3, "resistance": "gentle_resistance"}
         }
     }
 }

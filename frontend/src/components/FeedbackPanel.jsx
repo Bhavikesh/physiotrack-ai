@@ -38,41 +38,61 @@ export default function FeedbackPanel({ feedback, exerciseRules }) {
         Real-Time Feedback
       </h3>
 
+      {/* Real-Time Feedback Section */}
+      <div className="mb-4 p-3 bg-gray-700 rounded-lg">
+        <p className="text-xs text-gray-300 mb-2">
+          💡 <strong>What you're doing wrong:</strong>
+        </p>
+        <p className="text-xs text-gray-400">
+          The system analyzes your movement in real-time and provides instant feedback on form errors and compensations.
+        </p>
+      </div>
+
       {/* Feedback Messages */}
       <div className="space-y-3">
         {feedback && feedback.length > 0 ?  (
-          feedback.map((item, index) => (
-            <div
-              key={index}
-              className={`feedback-alert p-3 rounded-lg border-2 ${getSeverityClass(item.severity)}`}
-            >
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 mt-0.5">
-                  {getSeverityIcon(item.severity)}
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-sm">
-                    {item.message}
-                  </p>
-                  {item.current_value && item.threshold && (
-                    <p className="text-xs mt-1 opacity-75">
-                      Current: {Math.round(item.current_value)}° • Target: {item.threshold}
+          <>
+            <div className="bg-red-900/30 border-2 border-red-500 rounded-lg p-3 mb-3">
+              <p className="text-sm font-bold text-red-200 mb-2">
+                ⚠️ {feedback.length} Form Issue{feedback.length > 1 ? 's' : ''} Detected
+              </p>
+            </div>
+            {feedback.map((item, index) => (
+              <div
+                key={index}
+                className={`feedback-alert p-4 rounded-lg border-2 ${getSeverityClass(item.severity)} animate-pulse-slow`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 mt-0.5">
+                    {getSeverityIcon(item.severity)}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-sm mb-1">
+                      {item.type?.toUpperCase() || 'CORRECTION'}:
                     </p>
-                  )}
+                    <p className="font-medium text-base">
+                      {item.message}
+                    </p>
+                    {item.current_value && item.threshold && (
+                      <p className="text-xs mt-2 opacity-75 font-semibold">
+                        📊 Current: {Math.round(item.current_value)}° • Target: {item.threshold}°
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            ))}
+          </>
         ) : (
           <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <CheckCircle className="w-5 h-5 text-green-500" />
+              <CheckCircle className="w-6 h-6 text-green-500" />
               <div>
-                <p className="text-sm font-medium text-green-800">
-                  Perfect Form!  🎉
+                <p className="text-base font-bold text-green-800">
+                  Perfect Form! 🎉
                 </p>
-                <p className="text-xs text-green-600 mt-1">
-                  Keep it up!
+                <p className="text-sm text-green-600 mt-1">
+                  No corrections needed. Keep it up!
                 </p>
               </div>
             </div>

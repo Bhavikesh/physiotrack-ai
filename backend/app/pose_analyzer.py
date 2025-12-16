@@ -15,21 +15,27 @@ class PoseAnalyzer:
     Main class for analyzing exercise form and providing feedback
     """
     
-    def __init__(self, exercise_id: str):
+    def __init__(self, exercise_id: str, weeks_post_surgery: int = None):
         """
         Initialize analyzer with specific exercise rules
         
         Args:
             exercise_id: Exercise identifier (e.g., 'shoulder_flexion')
+            weeks_post_surgery: Number of weeks since surgery (if applicable)
         """
         self.exercise_rules = get_exercise_rules(exercise_id)
         self.exercise_id = exercise_id
+        self.weeks_post_surgery = weeks_post_surgery
+        
+        # Adjust parameters for post-surgery patients
+        if weeks_post_surgery is not None:
+            self._adjust_for_surgery(weeks_post_surgery)
         
         # State tracking
         self.rep_count = 0
         self.quality_reps = 0
         self.current_state = "resting"
-        self. state_start_time = None
+        self.state_start_time = None
         
         # History for velocity calculation
         self.angle_history = []
@@ -38,7 +44,67 @@ class PoseAnalyzer:
         # Feedback tracking
         self.current_rep_feedback = []
         self.previous_angle = None
+    
+    
+    def _adjust_for_surgery(self, weeks: int):
+        """
+        Adjust exercise parameters based on weeks post-surgery
         
+        Args:
+            weeks: Number of weeks since surgery
+        """
+        print(f"⚕️ Adjusting parameters for {weeks} weeks post-surgery")
+        
+        # Reduce ROM targets for recent surgery
+        if weeks < 4:
+            # 0-4 weeks: Very limited ROM (50% of target)
+            reduction_factor = 0.5
+            print("   Phase: Early healing - 50% ROM")
+        elif weeks < 8:
+            # 4-8 weeks: Moderate ROM (70% of target)
+            reduction_factor = 0.7
+            print("   Phase: Progressive healing - 70% ROM")
+        elif weeks < 12:
+            # 8-12 weeks: Near normal ROM (85% of target)
+            reduction_factor = 0.85
+            print("   Phase: Advanced healing - 85% ROM")
+        else:
+            # 12+ weeks: Full ROM expected
+            reduction_factor = 1.0
+            print("   Phase: Full recovery - 100% ROM")
+        
+        # Adjust target ROM
+        original_rom = self.exercise_rules['target_rom']
+        self.exercise_rules['target_rom'] = int(original_rom * reduction_factor)
+        
+        # Adjust acceptable range
+        lower, upper = self.exercise_rules['acceptable_range']
+        self.exercise_rules['acceptable_range'] = (
+            int(lower * reduction_factor),
+            int(upper * reduction_factor)
+        )
+        
+        # Reduce velocity requirements (slower movement)
+        if 'velocity' in self.exercise_rules:
+            conc_lower, conc_upper = self.exercise_rules['velocity']['concentric']
+            ecc_lower, ecc_upper = self.exercise_rules['velocity']['eccentric']
+            
+            self.exercise_rules['velocity']['concentric'] = (
+                int(conc_lower * 0.7),  # Slower movement post-surgery
+                int(conc_upper * 0.8)
+            )
+            self.exercise_rules['velocity']['eccentric'] = (
+                int(ecc_lower * 0.7),
+                int(ecc_upper * 0.8)
+            )
+        
+        # Increase hold duration for healing
+        if weeks < 8 and 'hold_duration' in self.exercise_rules:
+            self.exercise_rules['hold_duration']['end_range'] += 1
+        
+        print(f"   Adjusted ROM: {original_rom}° → {self.exercise_rules['target_rom']}°")
+        print(f"   Acceptable range: {self.exercise_rules['acceptable_range']}")
+    
     
     def analyze_frame(self, landmarks: List[Dict], timestamp: float) -> Dict:
         """
@@ -58,8 +124,11 @@ class PoseAnalyzer:
                 - state: Current exercise state
                 - quality_score: 0-100 score for current rep
         """
+        print(f"🔍 Analyzing frame - Landmarks count: {len(landmarks)}")
+        
         # Calculate joint angles
         angles = self._calculate_angles(landmarks)
+        print(f"📐 Calculated angles: {angles}")
         
         # Check for compensations
         compensations = self._detect_compensations(landmarks, angles)
@@ -100,18 +169,25 @@ class PoseAnalyzer:
         angles = {}
         
         joints_config = self.exercise_rules.get('joints_to_track', {})
+        print(f"🔧 Joints to track: {list(joints_config.keys())}")
         
         for joint_name, config in joints_config.items():
             point_indices = config['points']
             
             # Extract the three points needed for angle calculation
             if len(point_indices) == 3:
-                point_a = landmarks[point_indices[0]]
-                point_b = landmarks[point_indices[1]]
-                point_c = landmarks[point_indices[2]]
-                
-                angle = self._calculate_angle_between_points(point_a, point_b, point_c)
-                angles[config['name']] = round(angle, 2)
+                try:
+                    point_a = landmarks[point_indices[0]]
+                    point_b = landmarks[point_indices[1]]
+                    point_c = landmarks[point_indices[2]]
+                    
+                    angle = self._calculate_angle_between_points(point_a, point_b, point_c)
+                    angles[config['name']] = round(angle, 2)
+                    print(f"✅ {joint_name} ({config['name']}): {round(angle, 2)}°")
+                except (IndexError, KeyError, TypeError) as e:
+                    print(f"❌ Error calculating {joint_name}: {e}")
+                    print(f"   Landmark structure: {type(landmarks[0]) if landmarks else 'empty'}")
+                    angles[config['name']] = 0
         
         return angles
     
@@ -265,7 +341,9 @@ class PoseAnalyzer:
         # Get the main angle we're tracking (first in joints_to_track)
         primary_joint = list(self.exercise_rules['joints_to_track'].keys())[0]
         angle_name = self.exercise_rules['joints_to_track'][primary_joint]['name']
-        current_angle = angles. get(angle_name, 0)
+        current_angle = angles.get(angle_name, 0)
+        
+        print(f"🎯 Tracking {angle_name}: {current_angle}° (state: {self.current_state}, reps: {self.rep_count})")
         
         # Determine movement direction
         if self.previous_angle is not None:
@@ -278,12 +356,14 @@ class PoseAnalyzer:
         # State machine logic
         if self.current_state == "resting":
             if current_angle > 30:  # Started movement
+                print(f"🚀 State change: resting -> raising (angle: {current_angle}°)")
                 self.current_state = "raising"
                 self.state_start_time = timestamp
                 self.current_rep_feedback = []
         
         elif self.current_state == "raising":
             if current_angle >= acceptable_range[0]:   # Reached target ROM
+                print(f"⬆️ State change: raising -> top (angle: {current_angle}°, target: {acceptable_range[0]}°)")
                 self.current_state = "top"
                 self.state_start_time = timestamp
         
@@ -294,6 +374,7 @@ class PoseAnalyzer:
             
             # Start lowering (angle decreases)
             if angle_change < -2:  # Moving down
+                print(f"⬇️ State change: top -> lowering (held for {hold_duration:.1f}s)")
                 if hold_duration < required_hold:
                     self.current_rep_feedback.append({
                         'type': 'timing',
@@ -305,6 +386,7 @@ class PoseAnalyzer:
         elif self.current_state == "lowering":
             if current_angle < 30:  # Returned to start position
                 self.rep_count += 1
+                print(f"✅ REP COMPLETED! Total: {self.rep_count}, Quality: {self.quality_reps}")
                 
                 # Check if rep had good form (no feedback)
                 if len(self.current_rep_feedback) == 0:

@@ -15,32 +15,56 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   
-  const [settings, setSettings] = useState({
-    notifications: {
-      exerciseReminders: true,
-      progressReports: true,
-      ptMessages: true,
-      emailNotifications: false
-    },
-    privacy: {
-      shareDataWithPT: true,
-      anonymousAnalytics: true
-    },
-    camera: {
-      resolution: 'high',
-      mirrorMode: true,
-      showSkeleton: true,
-      feedbackVolume: 50
+  // Load saved settings from localStorage
+  const loadSettings = () => {
+    const saved = localStorage.getItem('userSettings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Error loading settings:', e);
+      }
     }
-  });
+    // Default settings
+    return {
+      notifications: {
+        exerciseReminders: true,
+        progressReports: true,
+        ptMessages: true,
+        emailNotifications: false
+      },
+      privacy: {
+        shareDataWithPT: true,
+        anonymousAnalytics: true
+      },
+      camera: {
+        resolution: 'high',
+        mirrorMode: true,
+        showSkeleton: true,
+        feedbackVolume: 50
+      }
+    };
+  };
+  
+  const [settings, setSettings] = useState(loadSettings());
 
   const [saved, setSaved] = useState(false);
 
-  const handleSave = () => {
-    // In real app, save to backend
-    localStorage.setItem('userSettings', JSON.stringify(settings));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    try {
+      // Save to localStorage for immediate use
+      localStorage.setItem('userSettings', JSON.stringify(settings));
+      
+      // TODO: Add API endpoint to save settings to backend
+      // await api.settings.update(settings);
+      
+      setSaved(true);
+      console.log('✅ Settings saved:', settings);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error('❌ Failed to save settings:', error);
+      alert('Failed to save settings. Please try again.');
+    }
   };
 
   const updateSetting = (category, key, value) => {

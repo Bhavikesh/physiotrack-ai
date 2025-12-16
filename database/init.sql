@@ -151,7 +151,9 @@ INSERT INTO exercises (exercise_code, name, description, category, difficulty, t
 ('knee_extension', 'Knee Extension (Quad Set)', 'Straighten knee while seated, activate quadriceps', 'lower_body', 'beginner', 0.00),
 ('hip_abduction', 'Hip Abduction (Standing)', 'Lift leg out to the side while standing', 'lower_body', 'beginner', 45.00),
 ('squat', 'Squat', 'Lower body by bending knees and hips', 'lower_body', 'intermediate', 90.00),
-('ankle_pump', 'Ankle Pump', 'Point toes up and down while seated', 'lower_body', 'beginner', 20.00)
+('ankle_pump', 'Ankle Pump', 'Point toes up and down while seated', 'lower_body', 'beginner', 20.00),
+('neck_flexion', 'Cervical Flexion (Chin Tuck)', 'Gently bring chin toward chest, stretching back of neck', 'upper_body', 'beginner', 50.00),
+('neck_rotation', 'Cervical Rotation', 'Turn head to look over shoulder while keeping chin level', 'upper_body', 'beginner', 80.00)
 ON CONFLICT (exercise_code) DO NOTHING;
 
 -- ============================================================================
@@ -160,12 +162,12 @@ ON CONFLICT (exercise_code) DO NOTHING;
 
 -- Demo Patient User (password: demo1234)
 INSERT INTO users (email, password_hash, user_type, first_name, last_name) VALUES
-('demo@physiotrack.ai', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5LL2aGRzl/dTC', 'patient', 'Demo', 'Patient')
+('demo@physiotrack.ai', '$2b$12$gVVoFO21H1uUWNUUxBcaQueWE41MH9ohRa5dw89CIP4NgCQm2FN8q', 'patient', 'Demo', 'Patient')
 ON CONFLICT (email) DO NOTHING;
 
 -- Demo Physiotherapist (password: pt1234)
 INSERT INTO users (email, password_hash, user_type, first_name, last_name) VALUES
-('pt@physiotrack.ai', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5LL2aGRzl/dTC', 'physiotherapist', 'Dr. Sarah', 'Johnson')
+('pt@physiotrack.ai', '$2b$12$0WCwY3mc0BOCAbtXpkqpSu/ACxBDmDrbCuuI2YffUHQ9Q3R20eq82', 'physiotherapist', 'Dr. Sarah', 'Johnson')
 ON CONFLICT (email) DO NOTHING;
 
 -- Link demo patient to PT

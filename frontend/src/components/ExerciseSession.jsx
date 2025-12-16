@@ -11,7 +11,7 @@ import FeedbackPanel from './FeedbackPanel';
 import ProgressMetrics from './ProgressMetrics';
 import CameraSetup from './CameraSetup';
 import { api } from '../utils/apiClient';
-import { Play, Pause, Square, AlertCircle } from 'lucide-react';
+import { Play, Pause, Square, AlertCircle, Info } from 'lucide-react';
 
 export default function ExerciseSession({ exerciseCode, patientId, onComplete }) {
   // State management
@@ -35,6 +35,10 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
   const cameraRef = useRef(null);
   const frameNumberRef = useRef(0);
   const analysisInProgressRef = useRef(false);
+  
+  // Refs to hold current state values for callbacks
+  const sessionIdRef = useRef(null);
+  const isSessionActiveRef = useRef(false);
 
   // Initialize pose detection
   useEffect(() => {
@@ -67,52 +71,96 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
 
     initializePose();
 
+    // Cleanup function
     return () => {
+      console.log('🧹 Cleaning up ExerciseSession...');
+      
+      // Stop camera
       if (cameraRef.current) {
         cameraRef.current.stop();
+        cameraRef.current = null;
+      }
+      
+      // Stop video stream
+      if (videoRef.current && videoRef.current.srcObject) {
+        const tracks = videoRef.current.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
+      
+      // Close pose detection
+      if (poseRef.current) {
+        poseRef.current.close();
+        poseRef.current = null;
       }
     };
   }, []);
 
+  // Debug: Track isSessionActive changes and sync refs
+  useEffect(() => {
+    console.log('🔄 isSessionActive changed to:', isSessionActive, 'sessionId:', sessionId);
+    sessionIdRef.current = sessionId;
+    isSessionActiveRef.current = isSessionActive;
+  }, [isSessionActive, sessionId]);
+
   // Handle pose detection results
   const onPoseResults = async (results) => {
-    if (!results. poseLandmarks || ! isSessionActive || analysisInProgressRef.current) {
+    // Store landmarks for skeleton overlay (always update for smooth rendering)
+    if (results.poseLandmarks) {
+      setCurrentAnalysis(prev => ({ ...prev, landmarks: results.poseLandmarks }));
+    }
+    
+    // Debug logging
+    if (frameNumberRef.current % 30 === 0) {  // Log every 30 frames
+      console.log('📹 Pose results:', {
+        hasLandmarks: !!results.poseLandmarks,
+        landmarkCount: results.poseLandmarks?.length,
+        isSessionActive: isSessionActiveRef.current,
+        sessionId: sessionIdRef.current,
+        analyzing: analysisInProgressRef.current
+      });
+    }
+    
+    // Only analyze when session is active (use refs to get current values!)
+    if (!results.poseLandmarks || !isSessionActiveRef.current || analysisInProgressRef.current) {
       return;
     }
 
     frameNumberRef.current += 1;
 
-    // Draw skeleton on canvas
-    if (canvasRef.current && videoRef.current) {
-      const canvasCtx = canvasRef.current. getContext('2d');
-      canvasCtx.save();
-      canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      
-      // We'll draw the skeleton in SkeletonOverlay component
-      canvasCtx.restore();
-    }
-
     // Send to backend for analysis (throttle to every 3rd frame to reduce load)
     if (frameNumberRef.current % 3 === 0) {
       analysisInProgressRef.current = true;
       
+      console.log(`🔄 Sending frame ${frameNumberRef.current} to backend (session: ${sessionIdRef.current})`);
+      
       try {
         const response = await api.sessions.analyzeFrame({
-          session_id: sessionId,
+          session_id: sessionIdRef.current,  // Use ref for current value
           landmarks: results.poseLandmarks,
           timestamp: Date.now() / 1000,
           frame_number: frameNumberRef.current
         });
 
         const analysis = response.data;
-        setCurrentAnalysis(analysis);
+        // Merge with existing landmarks
+        setCurrentAnalysis({ ...analysis, landmarks: results.poseLandmarks });
         setRepCount(analysis.rep_count);
         setQualityReps(analysis.quality_reps);
         setQualityScore(analysis.quality_score);
         setFeedback(analysis.feedback);
 
+        console.log('📊 Analysis received:', { 
+          reps: analysis.rep_count, 
+          quality: analysis.quality_score, 
+          state: analysis.state,
+          feedbackCount: analysis.feedback.length,
+          feedback: analysis.feedback
+        });
+
       } catch (error) {
-        console.error('Error analyzing frame:', error);
+        console.error('❌ Error analyzing frame:', error);
+        console.error('Error details:', error.response?.data || error.message);
       } finally {
         analysisInProgressRef.current = false;
       }
@@ -159,8 +207,11 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
   // Start exercise session
   const startSession = async () => {
     try {
+      console.log('🚀 Starting session for exercise:', exerciseCode);
+      
       // Fetch exercise rules
-      const exerciseResponse = await api.exercises. getByCode(exerciseCode);
+      const exerciseResponse = await api.exercises.getByCode(exerciseCode);
+      console.log('📋 Exercise rules loaded:', exerciseResponse.data);
       setExerciseRules(exerciseResponse.data.rules);
 
       // Start session on backend
@@ -169,40 +220,62 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
         exercise_id: exerciseResponse.data.exercise_id
       });
 
+      console.log('✅ Session started:', sessionResponse.data.session_id);
       setSessionId(sessionResponse.data.session_id);
       setIsSessionActive(true);
       frameNumberRef.current = 0;
+      
+      // Verify state was set
+      console.log('🔧 State should now be:', {
+        sessionId: sessionResponse.data.session_id,
+        isSessionActive: true
+      });
 
-      console.log('✅ Session started:', sessionResponse.data.session_id);
     } catch (error) {
       console.error('❌ Failed to start session:', error);
+      console.error('Error details:', error.response?.data || error.message);
       alert('Failed to start exercise session. Please try again.');
     }
   };
 
   // End exercise session
   const endSession = async () => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      console.warn('⚠️ No session ID, cannot end session');
+      return;
+    }
 
     try {
+      console.log('🛑 Ending session:', sessionId);
+      setIsSessionActive(false);
+      
       const response = await api.sessions.end(sessionId);
       const summary = response.data;
 
-      setIsSessionActive(false);
-      
       // Stop camera
       if (cameraRef.current) {
         cameraRef.current.stop();
       }
+      
+      // Stop video stream tracks
+      if (videoRef.current && videoRef.current.srcObject) {
+        const tracks = videoRef.current.srcObject.getTracks();
+        tracks.forEach(track => {
+          track.stop();
+          console.log('🎥 Stopped track:', track.kind);
+        });
+      }
 
+      console.log('✅ Session ended:', summary);
+      
       // Call parent callback with summary
       if (onComplete) {
         onComplete(summary);
       }
 
-      console.log('✅ Session ended:', summary);
     } catch (error) {
       console.error('❌ Failed to end session:', error);
+      console.error('Error details:', error.response?.data || error.message);
     }
   };
 
@@ -275,6 +348,24 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
       <div className="flex-1 flex overflow-hidden">
         {/* Video Feed + Skeleton */}
         <div className="flex-1 relative bg-black">
+          {/* Exercise Instructions Overlay */}
+          {!isSessionActive && exerciseRules?.description && (
+            <div className="absolute top-4 left-4 right-4 bg-blue-900/90 backdrop-blur-sm border-2 border-blue-400 rounded-lg p-4 z-10 max-w-2xl">
+              <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2">
+                <Info className="w-5 h-5" />
+                How to Perform This Exercise:
+              </h3>
+              <p className="text-blue-100 text-sm leading-relaxed">
+                {exerciseRules.description}
+              </p>
+              <div className="mt-3 pt-3 border-t border-blue-400/50">
+                <p className="text-blue-200 text-xs">
+                  💡 <strong>Tip:</strong> Position yourself so your full body is visible in the camera for accurate tracking.
+                </p>
+              </div>
+            </div>
+          )}
+          
           <video
             ref={videoRef}
             className="absolute inset-0 w-full h-full object-cover transform scale-x-[-1]"
