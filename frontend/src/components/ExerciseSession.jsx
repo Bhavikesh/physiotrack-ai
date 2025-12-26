@@ -11,8 +11,10 @@ import FeedbackPanel from './FeedbackPanel';
 import ProgressMetrics from './ProgressMetrics';
 import CameraSetup from './CameraSetup';
 import InstructionsModal from './InstructionsModal';
+import VoiceSettings from './VoiceSettings';
 import { api } from '../utils/apiClient';
-import { Play, Pause, Square, AlertCircle, Info } from 'lucide-react';
+import VoiceFeedbackSystem from '../utils/VoiceFeedback';
+import { Play, Pause, Square, AlertCircle, Info, Volume2 } from 'lucide-react';
 
 export default function ExerciseSession({ exerciseCode, patientId, onComplete }) {
   // State management
@@ -21,6 +23,7 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
   const [isPoseDetectionReady, setIsPoseDetectionReady] = useState(false);
   const [cameraPermission, setCameraPermission] = useState('prompt'); // 'granted', 'denied', 'prompt'
   const [showInstructions, setShowInstructions] = useState(false);
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
   
   // Exercise data
   const [exerciseRules, setExerciseRules] = useState(null);
@@ -37,6 +40,9 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
   const cameraRef = useRef(null);
   const frameNumberRef = useRef(0);
   const analysisInProgressRef = useRef(false);
+  const voiceSystemRef = useRef(new VoiceFeedbackSystem());
+  const lastRepAnnouncementRef = useRef(0);
+  const lastRepCountRef = useRef(0);
   
   // Refs to hold current state values for callbacks
   const sessionIdRef = useRef(null);
@@ -77,6 +83,9 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
     return () => {
       console.log('🧹 Cleaning up ExerciseSession...');
       
+      // Stop voice system
+      voiceSystemRef.current.stop();
+      
       // Stop camera
       if (cameraRef.current) {
         cameraRef.current.stop();
@@ -103,7 +112,20 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
     console.log('🔄 isSessionActive changed to:', isSessionActive, 'sessionId:', sessionId);
     sessionIdRef.current = sessionId;
     isSessionActiveRef.current = isSessionActive;
+    
+    // Reset rep announcement tracking when session ends
+    if (!isSessionActive) {
+      lastRepAnnouncementRef.current = 0;
+    }
   }, [isSessionActive, sessionId]);
+
+  // Create new voice system for each session
+  useEffect(() => {
+    if (isSessionActive) {
+      // Reset voice system at the start of session
+      voiceSystemRef.current.stop();
+    }
+  }, [isSessionActive]);
 
   // Load exercise rules on mount
   useEffect(() => {
@@ -170,6 +192,34 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
         setQualityScore(analysis.quality_score);
         setFeedback(analysis.feedback);
 
+        // Voice feedback for form corrections (high priority)
+        analysis.feedback.forEach(fb => {
+          if (fb.severity === 'high') {
+            voiceSystemRef.current.speak(fb.message, { 
+              priority: 'high',
+              feedbackId: fb.category
+            });
+          } else if (fb.severity === 'medium') {
+            voiceSystemRef.current.speak(fb.message, { 
+              priority: 'normal',
+              feedbackId: fb.category
+            });
+          }
+        });
+
+        // Voice feedback for rep count - only announce when rep count actually increases
+        if (analysis.rep_count > lastRepCountRef.current && isSessionActiveRef.current) {
+          voiceSystemRef.current.speak(
+            `Rep ${analysis.rep_count}`, 
+            { 
+              priority: 'normal',
+              feedbackId: `rep_${analysis.rep_count}`,
+              allowDuplicate: false
+            }
+          );
+          lastRepCountRef.current = analysis.rep_count;
+        }
+
         console.log('📊 Analysis received:', { 
           reps: analysis.rep_count, 
           quality: analysis.quality_score, 
@@ -229,6 +279,19 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
     try {
       console.log('🚀 Starting session for exercise:', exerciseCode);
       
+      // Reset all state before starting new session
+      setRepCount(0);
+      setQualityReps(0);
+      setQualityScore(100);
+      setFeedback([]);
+      setCurrentAnalysis(null);
+      frameNumberRef.current = 0;
+      lastRepAnnouncementRef.current = 0;
+      
+      // Reset voice system for new session
+      voiceSystemRef.current.stop();
+      voiceSystemRef.current = new VoiceFeedbackSystem();
+      
       // Start session on backend (exercise rules already loaded)
       const exerciseResponse = await api.exercises.getByCode(exerciseCode);
       const sessionResponse = await api.sessions.start({
@@ -239,13 +302,12 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
       console.log('✅ Session started:', sessionResponse.data.session_id);
       setSessionId(sessionResponse.data.session_id);
       setIsSessionActive(true);
-      frameNumberRef.current = 0;
       
-      // Verify state was set
-      console.log('🔧 State should now be:', {
-        sessionId: sessionResponse.data.session_id,
-        isSessionActive: true
-      });
+      // Voice announcement for session start
+      voiceSystemRef.current.speak(
+        `Starting ${exerciseRules?.name || 'exercise'} session`, 
+        { priority: 'high' }
+      );
 
     } catch (error) {
       console.error('❌ Failed to start session:', error);
@@ -263,14 +325,27 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
 
     try {
       console.log('🛑 Ending session:', sessionId);
+      
+      // IMMEDIATELY stop voice and analysis to prevent further processing
+      voiceSystemRef.current.stop();
       setIsSessionActive(false);
+      isSessionActiveRef.current = false;
       
       const response = await api.sessions.end(sessionId);
       const summary = response.data;
 
+      // Voice announcement for session end
+      setTimeout(() => {
+        voiceSystemRef.current.speak(
+          `Session complete. You completed ${summary.rep_count} reps with ${summary.quality_reps} quality reps`, 
+          { priority: 'high' }
+        );
+      }, 500);
+
       // Stop camera
       if (cameraRef.current) {
         cameraRef.current.stop();
+        cameraRef.current = null;
       }
       
       // Stop video stream tracks
@@ -280,9 +355,21 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
           track.stop();
           console.log('🎥 Stopped track:', track.kind);
         });
+        videoRef.current.srcObject = null;
       }
 
       console.log('✅ Session ended:', summary);
+      
+      // Reset all state
+      setSessionId(null);
+      setRepCount(0);
+      setQualityReps(0);
+      setQualityScore(100);
+      setFeedback([]);
+      setCurrentAnalysis(null);
+      frameNumberRef.current = 0;
+      lastRepAnnouncementRef.current = 0;
+      analysisInProgressRef.current = false;
       
       // Call parent callback with summary
       if (onComplete) {
@@ -340,6 +427,14 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
           <div className="flex gap-3">
             {! isSessionActive ?  (
               <>
+                <button 
+                  onClick={() => setShowVoiceSettings(true)}
+                  className="btn-secondary flex items-center gap-2"
+                  title="Voice settings"
+                >
+                  <Volume2 className="w-5 h-5" />
+                  Voice
+                </button>
                 <button 
                   onClick={() => setShowInstructions(true)}
                   className="btn-secondary flex items-center gap-2"
@@ -420,6 +515,13 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
         exerciseRules={exerciseRules}
         isOpen={showInstructions}
         onClose={() => setShowInstructions(false)}
+      />
+
+      {/* Voice Settings Modal */}
+      <VoiceSettings
+        voiceSystem={voiceSystemRef.current}
+        isOpen={showVoiceSettings}
+        onClose={() => setShowVoiceSettings(false)}
       />
     </div>
   );
