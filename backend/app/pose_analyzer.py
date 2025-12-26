@@ -343,7 +343,11 @@ class PoseAnalyzer:
         angle_name = self.exercise_rules['joints_to_track'][primary_joint]['name']
         current_angle = angles.get(angle_name, 0)
         
-        print(f"🎯 Tracking {angle_name}: {current_angle}° (state: {self.current_state}, reps: {self.rep_count})")
+        # Get all tracked angles for better validation
+        all_angles = {self.exercise_rules['joints_to_track'][joint]['name']: angles.get(self.exercise_rules['joints_to_track'][joint]['name'], 0) 
+                      for joint in self.exercise_rules['joints_to_track']}
+        
+        print(f"🎯 Tracking {angle_name}: {current_angle}° | All angles: {all_angles} (state: {self.current_state}, reps: {self.rep_count})")
         
         # Determine movement direction
         if self.previous_angle is not None:
@@ -386,11 +390,21 @@ class PoseAnalyzer:
         elif self.current_state == "lowering":
             if current_angle < 30:  # Returned to start position
                 self.rep_count += 1
-                print(f"✅ REP COMPLETED! Total: {self.rep_count}, Quality: {self.quality_reps}")
                 
-                # Check if rep had good form (no feedback)
-                if len(self.current_rep_feedback) == 0:
+                # Quality rep criteria: must have good form (minimal feedback)
+                # Count severity points
+                high_severity_issues = [fb for fb in self.current_rep_feedback if fb.get('severity') == 'high']
+                medium_severity_issues = [fb for fb in self.current_rep_feedback if fb.get('severity') == 'medium']
+                
+                # Quality rep if: NO high severity issues AND few medium severity issues
+                is_quality_rep = len(high_severity_issues) == 0 and len(medium_severity_issues) <= 1
+                
+                if is_quality_rep:
                     self.quality_reps += 1
+                    print(f"✅ REP #{self.rep_count} COMPLETED! | ⭐ QUALITY REP! (Total: {self.rep_count} reps, {self.quality_reps} quality)")
+                else:
+                    feedback_summary = f"{len(high_severity_issues)} high-severity, {len(medium_severity_issues)} medium-severity"
+                    print(f"✅ REP #{self.rep_count} COMPLETED! | ⚠️ Not quality (Issues: {feedback_summary}) (Total: {self.rep_count} reps, {self.quality_reps} quality)")
                 
                 self.current_state = "resting"
                 self.state_start_time = timestamp
@@ -498,16 +512,16 @@ class PoseAnalyzer:
         """
         score = 100.0
         
-        # Deduct points for each feedback item based on severity
+        # Deduct points for each feedback item based on severity (reduced penalties)
         for item in feedback:
             severity = item.get('severity', 'low')
             
             if severity == 'high':
-                score -= 20
+                score -= 15  # Reduced from 20
             elif severity == 'medium':
-                score -= 10
+                score -= 5   # Reduced from 10
             elif severity == 'low': 
-                score -= 5
+                score -= 2   # Reduced from 5
         
         # Check ROM achievement
         primary_joint = list(self.exercise_rules['joints_to_track'].keys())[0]
@@ -517,10 +531,10 @@ class PoseAnalyzer:
         target_rom = self.exercise_rules['target_rom']
         acceptable_range = self.exercise_rules['acceptable_range']
         
-        # Deduct if not reaching target ROM
+        # Deduct if not reaching target ROM (reduced penalty)
         if current_angle < acceptable_range[0]:
             rom_deficit = acceptable_range[0] - current_angle
-            score -= min(rom_deficit / 2, 30)  # Max 30 points for ROM
+            score -= min(rom_deficit / 3, 15)  # Max 15 points (reduced from 30) for ROM
         
         return max(0.0, min(100.0, score))
     

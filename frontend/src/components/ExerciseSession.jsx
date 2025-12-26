@@ -10,6 +10,7 @@ import SkeletonOverlay from './SkeletonOverlay';
 import FeedbackPanel from './FeedbackPanel';
 import ProgressMetrics from './ProgressMetrics';
 import CameraSetup from './CameraSetup';
+import InstructionsModal from './InstructionsModal';
 import { api } from '../utils/apiClient';
 import { Play, Pause, Square, AlertCircle, Info } from 'lucide-react';
 
@@ -19,6 +20,7 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [isPoseDetectionReady, setIsPoseDetectionReady] = useState(false);
   const [cameraPermission, setCameraPermission] = useState('prompt'); // 'granted', 'denied', 'prompt'
+  const [showInstructions, setShowInstructions] = useState(false);
   
   // Exercise data
   const [exerciseRules, setExerciseRules] = useState(null);
@@ -102,6 +104,24 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
     sessionIdRef.current = sessionId;
     isSessionActiveRef.current = isSessionActive;
   }, [isSessionActive, sessionId]);
+
+  // Load exercise rules on mount
+  useEffect(() => {
+    const loadExerciseRules = async () => {
+      try {
+        console.log('📖 Loading exercise rules for:', exerciseCode);
+        const response = await api.exercises.getByCode(exerciseCode);
+        console.log('✅ Exercise rules loaded:', response.data);
+        setExerciseRules(response.data.rules);
+      } catch (error) {
+        console.error('❌ Failed to load exercise rules:', error);
+      }
+    };
+
+    if (exerciseCode) {
+      loadExerciseRules();
+    }
+  }, [exerciseCode]);
 
   // Handle pose detection results
   const onPoseResults = async (results) => {
@@ -209,12 +229,8 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
     try {
       console.log('🚀 Starting session for exercise:', exerciseCode);
       
-      // Fetch exercise rules
+      // Start session on backend (exercise rules already loaded)
       const exerciseResponse = await api.exercises.getByCode(exerciseCode);
-      console.log('📋 Exercise rules loaded:', exerciseResponse.data);
-      setExerciseRules(exerciseResponse.data.rules);
-
-      // Start session on backend
       const sessionResponse = await api.sessions.start({
         patient_id: patientId,
         exercise_id: exerciseResponse.data.exercise_id
@@ -323,14 +339,23 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
           
           <div className="flex gap-3">
             {! isSessionActive ?  (
-              <button 
-                onClick={startSession}
-                disabled={!isPoseDetectionReady || cameraPermission !== 'granted'}
-                className="btn-primary flex items-center gap-2"
-              >
-                <Play className="w-5 h-5" />
-                Start Exercise
-              </button>
+              <>
+                <button 
+                  onClick={() => setShowInstructions(true)}
+                  className="btn-secondary flex items-center gap-2"
+                >
+                  <Info className="w-5 h-5" />
+                  How to Perform
+                </button>
+                <button 
+                  onClick={startSession}
+                  disabled={!isPoseDetectionReady || cameraPermission !== 'granted'}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <Play className="w-5 h-5" />
+                  Start Exercise
+                </button>
+              </>
             ) : (
               <button 
                 onClick={endSession}
@@ -348,24 +373,6 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
       <div className="flex-1 flex overflow-hidden">
         {/* Video Feed + Skeleton */}
         <div className="flex-1 relative bg-black">
-          {/* Exercise Instructions Overlay */}
-          {!isSessionActive && exerciseRules?.description && (
-            <div className="absolute top-4 left-4 right-4 bg-blue-900/90 backdrop-blur-sm border-2 border-blue-400 rounded-lg p-4 z-10 max-w-2xl">
-              <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2">
-                <Info className="w-5 h-5" />
-                How to Perform This Exercise:
-              </h3>
-              <p className="text-blue-100 text-sm leading-relaxed">
-                {exerciseRules.description}
-              </p>
-              <div className="mt-3 pt-3 border-t border-blue-400/50">
-                <p className="text-blue-200 text-xs">
-                  💡 <strong>Tip:</strong> Position yourself so your full body is visible in the camera for accurate tracking.
-                </p>
-              </div>
-            </div>
-          )}
-          
           <video
             ref={videoRef}
             className="absolute inset-0 w-full h-full object-cover transform scale-x-[-1]"
@@ -407,6 +414,13 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
           />
         </div>
       </div>
+
+      {/* Instructions Modal */}
+      <InstructionsModal
+        exerciseRules={exerciseRules}
+        isOpen={showInstructions}
+        onClose={() => setShowInstructions(false)}
+      />
     </div>
   );
 }
