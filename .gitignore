@@ -38,8 +38,11 @@ dist/
 Thumbs.db
 
 # Database
-*. db
+*.db
 *.sqlite
+*.sqlite3
+backend/*.db
+backend/physiotrack.db
 
 # Logs
 *.log

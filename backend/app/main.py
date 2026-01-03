@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 
-from app.routers import exercises, sessions, analytics, auth
+from app.routers import exercises, sessions, analytics, auth, records, analytics_enhanced
 from app.database import engine, Base
 
 # Configure logging
@@ -48,6 +48,8 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(exercises.router, prefix="/api/v1/exercises", tags=["Exercises"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
+app.include_router(records.router, prefix="/api/v1/records", tags=["Personal Records"])
+app.include_router(analytics_enhanced.router, prefix="/api/v1/analytics-enhanced", tags=["Enhanced Analytics"])
 
 
 # Root endpoint

@@ -4,23 +4,62 @@
  */
 
 import { Volume2, Zap, Settings } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function VoiceSettings({ voiceSystem, isOpen, onClose }) {
   const [rate, setRate] = useState(1.0);
   const [volume, setVolume] = useState(0.9);
   const [enableVoice, setEnableVoice] = useState(true);
 
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('voiceSettings');
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        setRate(settings.rate || 1.0);
+        setVolume(settings.volume || 0.9);
+        setEnableVoice(settings.enabled !== false);
+        
+        // Apply to voice system
+        if (voiceSystem) {
+          voiceSystem.setRate(settings.rate || 1.0);
+          voiceSystem.setVolume(settings.volume || 0.9);
+        }
+      } catch (error) {
+        console.error('Error loading voice settings:', error);
+      }
+    }
+  }, [voiceSystem]);
+
+  // Save settings whenever they change
+  const saveSettings = (newSettings) => {
+    const settings = {
+      rate: newSettings.rate !== undefined ? newSettings.rate : rate,
+      volume: newSettings.volume !== undefined ? newSettings.volume : volume,
+      enabled: newSettings.enabled !== undefined ? newSettings.enabled : enableVoice
+    };
+    localStorage.setItem('voiceSettings', JSON.stringify(settings));
+  };
+
   const handleRateChange = (e) => {
     const newRate = parseFloat(e.target.value);
     setRate(newRate);
     voiceSystem?.setRate(newRate);
+    saveSettings({ rate: newRate });
   };
 
   const handleVolumeChange = (e) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
     voiceSystem?.setVolume(newVolume);
+    saveSettings({ volume: newVolume });
+  };
+
+  const handleEnableChange = (e) => {
+    const enabled = e.target.checked;
+    setEnableVoice(enabled);
+    saveSettings({ enabled });
   };
 
   const testVoice = () => {
@@ -54,7 +93,7 @@ export default function VoiceSettings({ voiceSystem, isOpen, onClose }) {
               <input
                 type="checkbox"
                 checked={enableVoice}
-                onChange={(e) => setEnableVoice(e.target.checked)}
+                onChange={handleEnableChange}
                 className="w-5 h-5 accent-blue-500 cursor-pointer"
               />
               <span className="text-white font-medium">Enable Voice Feedback</span>
