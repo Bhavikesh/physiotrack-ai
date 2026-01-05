@@ -46,6 +46,7 @@ class PoseAnalyzer:
         self.previous_angle = None
         self.last_feedback_message = None  # Track last feedback to avoid repetition
         self.feedback_cooldown = 0  # Cooldown frames before repeating same feedback
+        self.rest_angle_start = None  # Baseline angle when rep starts
 
     
     
@@ -394,6 +395,8 @@ class PoseAnalyzer:
                 self.current_state = "raising"
                 self.state_start_time = timestamp
                 self.current_rep_feedback = []
+                # Capture baseline/rest angle at movement start so we know when user returns
+                self.rest_angle_start = current_angle
         
         elif self.current_state == "raising":
             if current_angle >= acceptable_range[0]:   # Reached target ROM
@@ -418,7 +421,14 @@ class PoseAnalyzer:
                 self.current_state = "lowering"
         
         elif self.current_state == "lowering":
-            if current_angle < 30:  # Returned to start position
+            # Determine dynamic rest threshold based on baseline angle captured at start
+            rest_angle = self.rest_angle_start if self.rest_angle_start is not None else current_angle
+            # Allow a tolerance band to account for jitter; at least 8-10°
+            rest_tolerance = max(10, target_rom * 0.1)
+
+            # For exercises like neck rotation, the rest angle is high (near 180°); for others it can be lower.
+            # We consider the rep complete once the angle is back within the tolerance of the baseline rest angle.
+            if abs(current_angle - rest_angle) <= rest_tolerance:
                 self.rep_count += 1
                 
                 # Quality rep criteria: must have good form (minimal feedback)
