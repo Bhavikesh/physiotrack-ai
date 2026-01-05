@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Trophy, TrendingUp, Zap, Target, Calendar, ChevronRight } from 'lucide-react';
-import api from '../utils/api';
+import { api } from '../utils/apiClient';
 
 export default function PersonalRecordsPage() {
   const [records, setRecords] = useState(null);

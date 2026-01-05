@@ -62,6 +62,8 @@ export const api = {
     end: (sessionId) => apiClient.post('/api/v1/sessions/end', { session_id: sessionId }),
     getHistory: (patientId, limit = 10) => 
       apiClient.get(`/api/v1/sessions/history/${patientId}`, { params: { limit } }),
+    getByPatient: (patientId, limit = 5) =>
+      apiClient.get(`/api/v1/sessions/history/${patientId}`, { params: { limit } }),
     getDetail: (sessionId) => apiClient.get(`/api/v1/sessions/${sessionId}`),
   },
 
@@ -73,6 +75,18 @@ export const api = {
       apiClient.get(`/api/v1/analytics/rom-history/${patientId}/${exerciseId}`, { params: { days } }),
     getFeedbackSummary: (sessionId) => 
       apiClient.get(`/api/v1/analytics/feedback-summary/${sessionId}`),
+  },
+
+  // Personal Records
+  records: {
+    getRecords: (patientId) => apiClient.get(`/api/v1/records/patient/${patientId}/records`),
+    updateSessionRecords: (sessionId) => apiClient.post(`/api/v1/records/session/${sessionId}/update-records`),
+  },
+
+  // Enhanced Analytics
+  analyticsEnhanced: {
+    getTrends: (patientId) => apiClient.get(`/api/v1/analytics-enhanced/patient/${patientId}/trends`),
+    getAdherenceInsights: (patientId) => apiClient.get(`/api/v1/analytics-enhanced/patient/${patientId}/adherence-insights`),
   },
 };
 

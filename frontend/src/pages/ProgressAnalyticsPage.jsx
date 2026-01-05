@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart } from 'recharts';
 import { TrendingUp, Activity, Target, Calendar, ArrowUp, ArrowDown } from 'lucide-react';
-import api from '../utils/api';
+import { api } from '../utils/apiClient';
 
 export default function ProgressAnalyticsPage() {
   const [trends, setTrends] = useState(null);
