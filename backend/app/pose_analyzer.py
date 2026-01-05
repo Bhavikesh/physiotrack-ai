@@ -44,6 +44,9 @@ class PoseAnalyzer:
         # Feedback tracking
         self.current_rep_feedback = []
         self.previous_angle = None
+        self.last_feedback_message = None  # Track last feedback to avoid repetition
+        self.feedback_cooldown = 0  # Cooldown frames before repeating same feedback
+
     
     
     def _adjust_for_surgery(self, weeks: int):
@@ -141,6 +144,33 @@ class PoseAnalyzer:
         
         # Combine all feedback
         all_feedback = compensations + velocity_feedback
+        
+        # **NEW: Deduplicate feedback - only add to current_rep_feedback if it's different from last feedback**
+        if all_feedback:
+            # Get unique feedback messages (by type + message content)
+            feedback_signatures = set()
+            for fb in all_feedback:
+                sig = f"{fb.get('type')}:{fb.get('message')}"
+                feedback_signatures.add(sig)
+            
+            # Only add to rep feedback if we haven't seen this exact message recently
+            current_signatures = {f"{fb.get('type')}:{fb.get('message')}" for fb in self.current_rep_feedback}
+            
+            for fb in all_feedback:
+                sig = f"{fb.get('type')}:{fb.get('message')}"
+                # Add only if it's a new message or cooldown has expired
+                if sig not in current_signatures or self.feedback_cooldown <= 0:
+                    # Check if this exact feedback is already in current rep
+                    if not any(
+                        existing['type'] == fb['type'] and 
+                        existing['message'] == fb['message']
+                        for existing in self.current_rep_feedback
+                    ):
+                        self.current_rep_feedback.append(fb)
+                        self.feedback_cooldown = 15  # Wait 15 frames (~500ms at 30fps) before repeating same message
+            
+            # Decrement cooldown
+            self.feedback_cooldown -= 1
         
         # Calculate quality score
         quality_score = self._calculate_quality_score(angles, all_feedback)

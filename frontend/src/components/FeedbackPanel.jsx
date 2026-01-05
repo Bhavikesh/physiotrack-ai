@@ -57,7 +57,12 @@ export default function FeedbackPanel({ feedback, exerciseRules }) {
                 ⚠️ {feedback.length} Form Issue{feedback.length > 1 ? 's' : ''} Detected
               </p>
             </div>
-            {feedback.map((item, index) => (
+            {feedback
+              // Deduplicate feedback by message content
+              .filter((item, index, arr) => 
+                arr.findIndex(fb => fb.message === item.message) === index
+              )
+              .map((item, index) => (
               <div
                 key={index}
                 className={`feedback-alert p-4 rounded-lg border-2 ${getSeverityClass(item.severity)} animate-pulse-slow`}
