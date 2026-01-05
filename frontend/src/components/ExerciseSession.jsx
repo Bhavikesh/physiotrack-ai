@@ -558,6 +558,7 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
                 onStop={endSession}
                 onRestart={restartSession}
               />
+            )}
           </div>
         </div>
       </div>
