@@ -550,24 +550,14 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
                 </button>
               </>
             ) : (
-              <>
-                <SessionControls 
-                  isSessionActive={isSessionActive}
-                  isPaused={isPaused}
-                  onPause={pauseSession}
-                  onResume={resumeSession}
-                  onStop={endSession}
-                  onRestart={restartSession}
-                />
-                <button 
-                  onClick={endSession}
-                  className="btn-danger flex items-center gap-2"
-                >
-                  <Square className="w-5 h-5" />
-                  End Session
-                </button>
-              </>
-            )}
+              <SessionControls 
+                isSessionActive={isSessionActive}
+                isPaused={isPaused}
+                onPause={pauseSession}
+                onResume={resumeSession}
+                onStop={endSession}
+                onRestart={restartSession}
+              />
           </div>
         </div>
       </div>

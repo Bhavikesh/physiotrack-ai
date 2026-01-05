@@ -118,7 +118,7 @@ export default function PatientDashboard() {
               <button
                 onClick={() => navigate('/analytics')}
                 className="text-gray-600 hover:text-gray-900"
-                title="Progress Analytics"
+                title="Progress Analytics & Insights"
               >
                 <TrendingUp className="w-5 h-5" />
               </button>
@@ -128,13 +128,6 @@ export default function PatientDashboard() {
                 title="Session History"
               >
                 <Calendar className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => navigate('/progress')}
-                className="text-gray-600 hover:text-gray-900"
-                title="Progress"
-              >
-                <TrendingUp className="w-5 h-5" />
               </button>
               <button
                 onClick={() => navigate('/settings')}
