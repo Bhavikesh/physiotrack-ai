@@ -12,6 +12,8 @@ import ExercisePage from './pages/ExercisePage';
 import HistoryPage from './pages/HistoryPage';
 import ProgressPage from './pages/ProgressPage';
 import SettingsPage from './pages/SettingsPage';
+import PersonalRecordsPage from './pages/PersonalRecordsPage';
+import ProgressAnalyticsPage from './pages/ProgressAnalyticsPage';
 
 // Context (simple state management)
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -42,6 +44,8 @@ function AppRoutes() {
       <Route path="/exercise/:exerciseCode" element={<ProtectedRoute><ExercisePage /></ProtectedRoute>} />
       <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
       <Route path="/progress" element={<ProtectedRoute><ProgressPage /></ProtectedRoute>} />
+      <Route path="/records" element={<ProtectedRoute><PersonalRecordsPage /></ProtectedRoute>} />
+      <Route path="/analytics" element={<ProtectedRoute><ProgressAnalyticsPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       
       {/* Protected PT routes */}

@@ -12,6 +12,9 @@ import ProgressMetrics from './ProgressMetrics';
 import CameraSetup from './CameraSetup';
 import InstructionsModal from './InstructionsModal';
 import VoiceSettings from './VoiceSettings';
+import LoadingScreen from './LoadingScreen';
+import SessionSummary from './SessionSummary';
+import SessionControls from './SessionControls';
 import { api } from '../utils/apiClient';
 import VoiceFeedbackSystem from '../utils/VoiceFeedback';
 import { Play, Pause, Square, AlertCircle, Info, Volume2 } from 'lucide-react';
@@ -20,10 +23,16 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
   // State management
   const [sessionId, setSessionId] = useState(null);
   const [isSessionActive, setIsSessionActive] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [isPoseDetectionReady, setIsPoseDetectionReady] = useState(false);
+  const [loadingStage, setLoadingStage] = useState('initializing');
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [cameraPermission, setCameraPermission] = useState('prompt'); // 'granted', 'denied', 'prompt'
   const [showInstructions, setShowInstructions] = useState(false);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [showSessionSummary, setShowSessionSummary] = useState(false);
+  const [sessionSummaryData, setSessionSummaryData] = useState(null);
+  const [previousSessionData, setPreviousSessionData] = useState(null);
   
   // Exercise data
   const [exerciseRules, setExerciseRules] = useState(null);
@@ -32,6 +41,8 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
   const [qualityReps, setQualityReps] = useState(0);
   const [qualityScore, setQualityScore] = useState(100);
   const [feedback, setFeedback] = useState([]);
+  const [sessionStartTime, setSessionStartTime] = useState(null);
+  const [sessionEndTime, setSessionEndTime] = useState(null);
   
   // Refs
   const videoRef = useRef(null);
@@ -52,6 +63,9 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
   useEffect(() => {
     const initializePose = async () => {
       try {
+        setLoadingStage('loading_mediapipe');
+        setLoadingProgress(25);
+        
         const pose = new Pose({
           locateFile: (file) => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
@@ -69,7 +83,11 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
 
         pose.onResults(onPoseResults);
         poseRef.current = pose;
+        
+        setLoadingProgress(50);
+        setLoadingStage('requesting_camera');
         setIsPoseDetectionReady(true);
+        setLoadingProgress(100);
 
         console.log('✅ MediaPipe Pose initialized');
       } catch (error) {
@@ -278,6 +296,7 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
   const startSession = async () => {
     try {
       console.log('🚀 Starting session for exercise:', exerciseCode);
+      setLoadingStage('connecting');
       
       // Reset all state before starting new session
       setRepCount(0);
@@ -285,12 +304,31 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
       setQualityScore(100);
       setFeedback([]);
       setCurrentAnalysis(null);
+      setIsPaused(false);
       frameNumberRef.current = 0;
       lastRepAnnouncementRef.current = 0;
       
       // Reset voice system for new session
       voiceSystemRef.current.stop();
       voiceSystemRef.current = new VoiceFeedbackSystem();
+      
+      // Load previous session data for comparison
+      try {
+        const previousSessionsResponse = await api.sessions.getByPatient(patientId);
+        if (previousSessionsResponse.data && previousSessionsResponse.data.length > 0) {
+          const lastSession = previousSessionsResponse.data[0];
+          setPreviousSessionData({
+            reps: lastSession.rep_count,
+            qualityReps: lastSession.quality_reps,
+            qualityScore: lastSession.quality_score,
+            duration: lastSession.duration_seconds,
+            date: lastSession.created_at
+          });
+          console.log('📊 Previous session data loaded');
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not load previous session:', err.message);
+      }
       
       // Start session on backend (exercise rules already loaded)
       const exerciseResponse = await api.exercises.getByCode(exerciseCode);
@@ -301,7 +339,9 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
 
       console.log('✅ Session started:', sessionResponse.data.session_id);
       setSessionId(sessionResponse.data.session_id);
+      setSessionStartTime(new Date());
       setIsSessionActive(true);
+      setLoadingStage(null);
       
       // Voice announcement for session start
       voiceSystemRef.current.speak(
@@ -330,9 +370,34 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
       voiceSystemRef.current.stop();
       setIsSessionActive(false);
       isSessionActiveRef.current = false;
+      setSessionEndTime(new Date());
       
       const response = await api.sessions.end(sessionId);
       const summary = response.data;
+
+      // Calculate session metrics for SessionSummary
+      const sessionDuration = summary.duration_seconds || 60;
+      const sessionMetrics = {
+        sessionId: sessionId,
+        exerciseName: exerciseRules?.name || 'Exercise',
+        duration: sessionDuration,
+        totalReps: summary.rep_count,
+        qualityReps: summary.quality_reps,
+        qualityPercentage: summary.quality_reps > 0 
+          ? Math.round((summary.quality_reps / summary.rep_count) * 100) 
+          : 0,
+        averageQuality: summary.quality_score,
+        feedback: summary.feedback_summary || [],
+        timestamp: new Date().toLocaleString()
+      };
+
+      // Update personal records via API
+      try {
+        await api.records.updateSessionRecords(sessionId);
+        console.log('✅ Personal records updated');
+      } catch (err) {
+        console.warn('⚠️ Could not update personal records:', err.message);
+      }
 
       // Voice announcement for session end
       setTimeout(() => {
@@ -360,6 +425,10 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
 
       console.log('✅ Session ended:', summary);
       
+      // Show session summary modal with metrics
+      setSessionSummaryData(sessionMetrics);
+      setShowSessionSummary(true);
+      
       // Reset all state
       setSessionId(null);
       setRepCount(0);
@@ -380,6 +449,35 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
       console.error('❌ Failed to end session:', error);
       console.error('Error details:', error.response?.data || error.message);
     }
+  };
+
+  // Pause exercise session
+  const pauseSession = () => {
+    if (!isSessionActive) return;
+    
+    setIsPaused(true);
+    isSessionActiveRef.current = false;
+    analysisInProgressRef.current = false;
+    
+    voiceSystemRef.current.speak('Session paused', { priority: 'high' });
+    console.log('⏸️ Session paused');
+  };
+
+  // Resume exercise session
+  const resumeSession = () => {
+    if (!isSessionActive || !isPaused) return;
+    
+    setIsPaused(false);
+    isSessionActiveRef.current = true;
+    
+    voiceSystemRef.current.speak('Resuming session', { priority: 'high' });
+    console.log('▶️ Session resumed');
+  };
+
+  // Restart exercise session
+  const restartSession = async () => {
+    setShowSessionSummary(false);
+    await startSession();
   };
 
   // Initialize camera on mount
@@ -452,13 +550,23 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
                 </button>
               </>
             ) : (
-              <button 
-                onClick={endSession}
-                className="btn-danger flex items-center gap-2"
-              >
-                <Square className="w-5 h-5" />
-                End Session
-              </button>
+              <>
+                <SessionControls 
+                  isSessionActive={isSessionActive}
+                  isPaused={isPaused}
+                  onPause={pauseSession}
+                  onResume={resumeSession}
+                  onStop={endSession}
+                  onRestart={restartSession}
+                />
+                <button 
+                  onClick={endSession}
+                  className="btn-danger flex items-center gap-2"
+                >
+                  <Square className="w-5 h-5" />
+                  End Session
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -516,6 +624,21 @@ export default function ExerciseSession({ exerciseCode, patientId, onComplete })
         isOpen={showInstructions}
         onClose={() => setShowInstructions(false)}
       />
+
+      {/* Session Summary Modal */}
+      {showSessionSummary && sessionSummaryData && (
+        <SessionSummary
+          sessionData={sessionSummaryData}
+          previousSessionData={previousSessionData}
+          onClose={() => {
+            setShowSessionSummary(false);
+            if (onComplete) {
+              onComplete(sessionSummaryData);
+            }
+          }}
+          onRestart={restartSession}
+        />
+      )}
 
       {/* Voice Settings Modal */}
       <VoiceSettings

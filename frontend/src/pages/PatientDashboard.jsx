@@ -109,26 +109,44 @@ export default function PatientDashboard() {
 
             <div className="flex items-center gap-4">
               <button
+                onClick={() => navigate('/records')}
+                className="text-gray-600 hover:text-gray-900"
+                title="Personal Records"
+              >
+                <Award className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => navigate('/analytics')}
+                className="text-gray-600 hover:text-gray-900"
+                title="Progress Analytics"
+              >
+                <TrendingUp className="w-5 h-5" />
+              </button>
+              <button
                 onClick={() => navigate('/history')}
                 className="text-gray-600 hover:text-gray-900"
+                title="Session History"
               >
                 <Calendar className="w-5 h-5" />
               </button>
               <button
                 onClick={() => navigate('/progress')}
                 className="text-gray-600 hover:text-gray-900"
+                title="Progress"
               >
                 <TrendingUp className="w-5 h-5" />
               </button>
               <button
                 onClick={() => navigate('/settings')}
                 className="text-gray-600 hover:text-gray-900"
+                title="Settings"
               >
                 <Settings className="w-5 h-5" />
               </button>
               <button
                 onClick={handleLogout}
                 className="text-gray-600 hover:text-red-600"
+                title="Logout"
               >
                 <LogOut className="w-5 h-5" />
               </button>
